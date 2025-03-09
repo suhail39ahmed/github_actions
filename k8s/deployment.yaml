@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: <your-docker-username>/frontend:latest
+        image: ahmesd9/frontend:latest
         ports:
         - containerPort: 80
 ---
@@ -34,6 +34,6 @@ spec:
     spec:
       containers:
       - name: backend
-        image: <your-docker-username>/backend:latest
+        image: ahmesd9/backend:latest
         ports:
         - containerPort: 5000
