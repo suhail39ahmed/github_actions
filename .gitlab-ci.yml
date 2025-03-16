@@ -1,0 +1,78 @@
+stages:
+  - build
+  - push
+  - deploy
+
+variables:
+  DOCKER_REGISTRY: "your-dockerhub-username"
+  FRONTEND_IMAGE: "$DOCKER_REGISTRY/frontend:latest"
+  BACKEND_IMAGE: "$DOCKER_REGISTRY/backend:latest"
+  K8S_CLUSTER_NAME: "your-cluster-name"
+  K8S_NAMESPACE: "default"
+  K8S_DEPLOYMENT_FILE: "k8s/deployment.yaml"
+  K8S_SERVICE_FILE: "k8s/service.yaml"
+  AZURE_RESOURCE_GROUP: "your-resource-group"
+
+# Cache node_modules for frontend and backend to improve build time
+cache:
+  paths:
+    - frontend/node_modules/
+    - backend/.venv/
+
+before_script:
+  - echo "Setting up Docker"
+  - export DOCKER_CLI_EXPERIMENTAL=enabled
+
+# Stage 1: Build frontend Docker image
+build_frontend:
+  stage: build
+  image: node:18-alpine
+  script:
+    - cd frontend
+    - npm install
+    - npm run build
+    - docker build -t $FRONTEND_IMAGE .
+  only:
+    - main
+
+# Stage 2: Build backend Docker image
+build_backend:
+  stage: build
+  image: python:3.9
+  script:
+    - cd backend
+    - pip install -r requirements.txt
+    - docker build -t $BACKEND_IMAGE .
+  only:
+    - main
+
+# Stage 3: Push Docker images to Docker Hub
+push_images:
+  stage: push
+  script:
+    - echo "Logging into Docker Hub"
+    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+    - docker push $FRONTEND_IMAGE
+    - docker push $BACKEND_IMAGE
+  only:
+    - main
+
+# Stage 4: Deploy to Kubernetes
+deploy_to_k8s:
+  stage: deploy
+  image: mcr.microsoft.com/azure-cli
+  script:
+    - echo "Setting up Azure AKS and deploying to Kubernetes"
+    - az aks get-credentials --resource-group $AZURE_RESOURCE_GROUP --name $K8S_CLUSTER_NAME
+    - kubectl apply -f $K8S_DEPLOYMENT_FILE
+    - kubectl apply -f $K8S_SERVICE_FILE
+  only:
+    - main
+
+# Optional: Clean up after the deployment
+cleanup:
+  stage: deploy
+  script:
+    - echo "Cleaning up Docker images"
+    - docker logout
+  when: always
