@@ -1,0 +1,101 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  dockerRegistry: 'your-dockerhub-username'
+  kubernetesCluster: 'your-k8s-cluster'
+  azureSubscription: 'your-azure-subscription'
+  k8sNamespace: 'default'
+
+jobs:
+  # Build and Push Frontend Docker Image
+  - job: BuildFrontend
+    displayName: 'Build Frontend'
+    steps:
+      - task: Checkout@2
+        displayName: 'Checkout code'
+
+      - task: UseNode@2
+        displayName: 'Set up Node.js'
+        inputs:
+          versionSpec: '18.x'
+
+      - script: |
+          cd frontend
+          npm install
+          npm run build
+        displayName: 'Install dependencies and build frontend'
+
+      - task: Docker@2
+        displayName: 'Build and Push Frontend Docker Image'
+        inputs:
+          command: 'buildAndPush'
+          repository: '$(dockerRegistry)/frontend'
+          dockerfile: 'frontend/Dockerfile'
+          containerRegistry: '$(dockerRegistry)'
+          tags: 'latest'
+
+  # Build and Push Backend Docker Image
+  - job: BuildBackend
+    displayName: 'Build Backend'
+    steps:
+      - task: Checkout@2
+        displayName: 'Checkout code'
+
+      - task: UsePythonVersion@0
+        displayName: 'Set up Python 3.9'
+        inputs:
+          versionSpec: '3.9'
+
+      - script: |
+          cd backend
+          pip install -r requirements.txt
+        displayName: 'Install Python dependencies'
+
+      - task: Docker@2
+        displayName: 'Build and Push Backend Docker Image'
+        inputs:
+          command: 'buildAndPush'
+          repository: '$(dockerRegistry)/backend'
+          dockerfile: 'backend/Dockerfile'
+          containerRegistry: '$(dockerRegistry)'
+          tags: 'latest'
+
+  # Deploy to Kubernetes Cluster
+  - job: DeployToK8s
+    displayName: 'Deploy to Kubernetes'
+    dependsOn:
+      - BuildFrontend
+      - BuildBackend
+    steps:
+      - task: Checkout@2
+        displayName: 'Checkout code'
+
+      - task: Kubernetes@1
+        displayName: 'Set up kubectl'
+        inputs:
+          connectionType: 'Azure Resource Manager'
+          azureSubscription: '$(azureSubscription)'
+          azureResourceGroup: 'your-resource-group'
+          kubernetesCluster: '$(kubernetesCluster)'
+
+      - script: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+        displayName: 'Apply Kubernetes Deployment and Service'
+
+  # Clean up Docker Images (Optional)
+  - job: CleanUp
+    displayName: 'Clean up Docker Images'
+    dependsOn:
+      - DeployToK8s
+    steps:
+      - task: Docker@2
+        displayName: 'Remove Docker Images'
+        inputs:
+          command: 'logout'
