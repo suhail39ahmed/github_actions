@@ -22,7 +22,7 @@ Create the following directory structure:
 ```bash
 cd frontend
 npx create-react-app .
-
+```
 
 ## Step 1: Set Up Project Structure
 
